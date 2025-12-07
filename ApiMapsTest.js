@@ -1,0 +1,76 @@
+/*. ___ .*/ 
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fast Food Finder</title>
+  <style>
+    #map { height:100vh; width: 100%;}
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+function initMap() {
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const userLocation = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude
+    };
+
+    const map = new google.maps.Map(document.getElementById("map"), {
+      center: userLocation,
+      zoom: 14
+    });
+
+    new google.maps.Marker({
+      position: userLocation,
+      map: map,
+      title: "You are here"
+    });
+
+    const service = new google.maps.places.PlacesService(map);
+
+    service.nearbySearch(
+      {
+        location: userLocation,
+        radius: 5000,
+        type: "restaurant"
+      },
+      handleNearbyResults
+    );
+  });
+}
+
+function handleNearbyResults(results, status) {
+  if (status !== google.maps.places.PlacesServiceStatus.OK) {
+    console.error("Search failed:", status);
+    return;
+  }
+  console.log(results);
+}
+</script>
+
+<script async
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCMn5i8ZDIUSAzurCTpH4XRtf7GAYsGbvs&libraries=places&callback=initMap">
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
