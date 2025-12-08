@@ -42,10 +42,10 @@ nav a:hover { color: #2E7D32; }
     overflow: hidden;
 }
 
-/* Compact Controls Box */
+/* --- COMPACT CONTROLS (2x2 Grid) --- */
 .map-controls {
     background: white;
-    padding: 10px 15px; /* Reduced Padding */
+    padding: 10px;
     border-radius: 8px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     border: 1px solid #ddd;
@@ -54,8 +54,49 @@ nav a:hover { color: #2E7D32; }
 
 .controls-grid {
     display: grid;
+    /* This creates exactly 2 columns of equal width */
     grid-template-columns: 1fr 1fr; 
-    gap: 8px; /* Tighter gap */
+    /* Spacing: 5px vertical gap, 15px horizontal gap */
+    gap: 5px 15px; 
+    align-items: end;
+}
+
+/* Force Sort Buttons to span both columns */
+.control-item.full-width {
+    grid-column: 1 / -1; 
+    margin-bottom: 5px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.control-item {
+    min-width: 0; /* Prevents layout breakage */
+}
+
+.control-item label { 
+    font-size: 0.75em; 
+    font-weight: bold; 
+    color: #555; 
+    display: flex;
+    justify-content: space-between; 
+    margin-bottom: 2px;
+}
+
+.control-item input[type="range"] { 
+    width: 100%; 
+    margin: 0;
+    cursor: pointer;
+    height: 25px; /* Compact height */
+}
+
+/* Ensure Brand Toggles don't break layout */
+.brand-toggles-container {
+    margin-top: 8px;
+    padding-top: 5px;
+    border-top: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .control-item.full-width {
@@ -517,12 +558,6 @@ input[type="text"] { flex: 1; }
     flex-shrink: 0; 
 }
 
-.controls-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
 .control-item label { font-size: 0.75em; font-weight: bold; color: #666; display: block; margin-bottom: 4px; }
 .control-item input, .control-item select { 
     width: 100%; padding: 6px; border: 1px solid #ddd; 
@@ -609,3 +644,83 @@ input[type="text"] { flex: 1; }
     width: 50px; height: 50px; animation: spin 1s linear infinite;
 }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+/* --- NEW HOME PAGE LAYOUT --- */
+
+/* Main Grid Wrapper */
+.home-layout {
+    display: grid;
+    /* Left Column (Controls) | Right Column (Carousel) */
+    grid-template-columns: 1fr 1.5fr; 
+    gap: 25px;
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 20px;
+    align-items: start; /* Aligns items to the top */
+}
+
+/* Left Column Stack */
+.home-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+/* The "Bubble" Card Style */
+.bubble-card {
+    background: white;
+    border-radius: 16px; /* Rounded corners for bubble effect */
+    padding: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05); /* Soft floaty shadow */
+    border: 1px solid #f0f0f0;
+}
+
+/* Styling the "Find Food" Bubble Content */
+.hero-bubble h1 {
+    margin-top: 0;
+    color: #2E7D32;
+    font-size: 1.8em;
+}
+.hero-bubble p {
+    color: #666;
+    margin-bottom: 20px;
+}
+.hero-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.input-group label {
+    font-weight: bold;
+    color: #555;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Styling the Search Bubble */
+.search-bubble h2 {
+    margin-top: 0;
+    font-size: 1.4em;
+    color: #333;
+}
+
+/* Styling the Carousel Column */
+.carousel-column {
+    /* Ensures the carousel doesn't overflow the grid */
+    min-width: 0; 
+}
+.restaurant-frame {
+    /* Adjust height to fit nicely next to the two bubbles */
+    height: 600px; 
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+/* RESPONSIVE: Stack them on mobile (Requirement for Final Project) */
+@media (max-width: 800px) {
+    .home-layout {
+        grid-template-columns: 1fr; /* Stack vertically */
+    }
+    .restaurant-frame {
+        height: 500px;
+    }
+}

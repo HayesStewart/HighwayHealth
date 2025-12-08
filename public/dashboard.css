@@ -1,0 +1,180 @@
+/* DASHBOARD LAYOUT: Sets up the main two-column structure */
+.dashboard-container {
+    /* Uses CSS Grid to create two columns: the Map area (1fr) and the Sidebar list (400px) */
+    flex: 1; 
+    display: grid;
+    grid-template-columns: 1fr 400px; 
+    gap: 20px;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow: hidden;
+    min-height: 0; 
+}
+
+.map-column {
+    /* Arranges the Controls (top) and the Map (bottom) vertically */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Styling for the  "Sort By" Header */
+.control-header {
+    margin-bottom: 5px;
+}
+.control-header h3 {
+    margin: 0;
+    font-size: 1em;
+    color: #333;
+    border-bottom: 1px solid #e0e0e0; /* Clean light gray border */
+    padding-bottom: 5px;
+}
+
+/* COMPACT CONTROLS (Filter/Sort Box) */
+.map-controls {
+    /* Styles for the "bubble" container holding all the controls */
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    border: 1px solid #ddd;
+    flex-shrink: 0;
+}
+
+.controls-grid {
+    /* Uses a 2-column grid to put two sliders on one line */
+    display: grid;
+    grid-template-columns: 1fr 1fr; 
+    gap: 5px 15px; 
+    align-items: end;
+}
+
+.control-item.full-width {
+    /* Forces the Sort Buttons to stretch across both columns */
+    grid-column: 1 / -1; 
+    margin-bottom: 5px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 5px;
+}
+
+.control-item { min-width: 0; }
+.control-item label { 
+    font-size: 0.75em; 
+    font-weight: bold; 
+    color: #555; 
+    display: flex; 
+    justify-content: space-between; 
+    margin-bottom: 2px;
+}
+/* Style for the dynamic value span */
+.control-item label span {
+    color: #009688; /* Accent Teal for slider values */
+    font-size: 1em;
+}
+.control-item input[type="range"] { 
+    width: 100%; margin: 0; cursor: pointer; height: 25px;
+}
+
+/* Brand Toggles (Filter Buttons) */
+.brand-toggles-container {
+    margin-top: 8px; padding-top: 5px; border-top: none;
+    display: flex; align-items: center; gap: 10px;
+}
+.brand-toggles-container label {
+    font-size: 0.75em; font-weight: bold; color: #666; white-space: nowrap;
+}
+.brand-toggles {
+    /* Allows the brand tags to scroll horizontally if many are present */
+    display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; padding-bottom: 2px;
+}
+.brand-tag {
+    font-size: 0.7em; background: #e8f5e9; /* Light green base */ color: #333; padding: 2px 8px;
+    border-radius: 10px; cursor: pointer; border: 1px solid #c8e6c9; 
+    user-select: none; transition: all 0.2s; white-space: nowrap;
+}
+.brand-tag.active {
+    /* Active state (when a brand is selected) */
+    background: #4CAF50; /* Primary Green */ color: white; border-color: #388E3C;
+    font-weight: bold;
+}
+.brand-tag:hover { background: #d5e6d5; } /* Restored hover color for non-active tags */
+.brand-tag.active:hover { background: #388E3C; } /* Restored active hover color */
+
+
+/* Map Frame */
+.map-frame {
+    /* Container for the actual Google Map element */
+    flex: 1; background: white; padding: 5px; border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid #ddd;
+    box-sizing: border-box;
+}
+#map { width: 100%; height: 100%; border-radius: 4px; background: #eee; }
+
+/* --- Sidebar (List) --- */
+
+/* **FIXED MISSING SECTION** */
+.sidebar {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    height: 100%; 
+    overflow: hidden; 
+}
+
+/* **CLEANED DUPLICATES** */
+.sidebar-header {
+    padding: 10px; 
+    border-bottom: 1px solid #e0e0e0; /* Cleaned to fit theme */
+    background: #f7faf7; /* : Light background */ 
+    flex-shrink: 0; 
+}
+
+.result-count {
+    font-size: 0.8em; color: #888; text-align: center; margin-top: 5px;
+}
+.results-list {
+    /* Ensures the list scrolls vertically if it's too long */
+    flex: 1; overflow-y: auto; padding: 0;
+}
+.food-item-row {
+    /* Styles for each individual menu item row */
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 15px; border-bottom: 1px solid #f0f0f0;
+    cursor: pointer; transition: background 0.2s;
+}
+.food-item-row:hover { background: #f7faf7; } /* Cleaned hover background */
+.food-info h4 { margin: 0 0 2px 0; font-size: 0.95em; color: #333; }
+.food-info .meta { font-size: 0.8em; color: #888; }
+.food-stats .macros { font-size: 0.75em; color: #666; display:block; margin-top:2px; }
+
+/* Sort Buttons */
+.sort-btn-group {
+    display: flex; gap: 4px; width: 100%;
+}
+.sort-btn {
+    flex: 1; padding: 6px 0; font-size: 0.75em; background-color: #e8f5e9; /* Light green base */
+    color: #4CAF50; border: 1px solid #c8e6c9; border-radius: 4px; cursor: pointer;
+    text-align: center; font-weight: 600;
+}
+.sort-btn:hover { background-color: #c8e6c9; }
+.sort-btn.active {
+    background-color: #4CAF50; color: white; border-color: #388E3C;
+}
+
+/* STAR RATING */
+.star-rating { font-size: 0.9em; letter-spacing: 1px; }
+.star-rating .filled { color: #009688; /* Accent Teal */ }
+.star-rating .empty { color: #ddd; }
+.star-rating .half {
+    /* CSS trick to render a half-star using gradient */
+    background: linear-gradient(to right, #009688 50%, #ddd 50%); 
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent; 
+}

@@ -10,12 +10,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// 1. Connect to my MongoDB database
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
-    console.log("[DB] Connected.");
+    console.log("[DB] Connected to my database successfully.");
   })
-  .catch(err => console.error("[DB] Error:", err));
+  .catch(err => console.error("[DB] Error connecting:", err));
 
+// 2. Define the structure (Schema) for my restaurant data in the database
 const restaurantSchema = new mongoose.Schema({
   restaurant: String, 
   lastUpdated: { type: Date, default: Date.now },
@@ -29,12 +31,15 @@ const restaurantSchema = new mongoose.Schema({
 
 const Restaurant = mongoose.model('Restaurant', restaurantSchema);
 
+// --- fatsecret authentification ---
+
 let cachedToken = null;
 let tokenExpiry = 0;
 
+// Function to get a secure temporary access key (Token) for the FatSecret API
 async function getFatSecretToken() {
     const now = Date.now();
-    if (cachedToken && now < tokenExpiry) return cachedToken;
+    if (cachedToken && now < tokenExpiry) return cachedToken; // Use cached key if it hasn't expired
     try {
         const response = await axios.post('https://oauth.fatsecret.com/connect/token', 
             qs.stringify({ grant_type: 'client_credentials', scope: 'basic' }), 
@@ -45,15 +50,17 @@ async function getFatSecretToken() {
                 }
             }
         );
+        // Store the new key and its expiration time
         cachedToken = response.data.access_token;
         tokenExpiry = now + (response.data.expires_in * 1000);
         return cachedToken;
     } catch (error) {
-        console.error("[AUTH ERROR] Token fetch failed:", error.message);
+        console.error("[AUTH ERROR] Failed to get FatSecret access key:", error.message);
         return null;
     }
 }
 
+// Function to pull out the calories, protein, and carbs from the API's description text
 function parseNutrients(description) {
     if (!description) return { calories: 0, protein: 0, carbs: 0 };
     const getVal = (regex) => {
@@ -67,6 +74,7 @@ function parseNutrients(description) {
     };
 }
 
+// Function to call FatSecret, pull menu data for a specific restaurant, and save/merge it into my database
 async function fetchAndMergeFatSecret(restaurantName) {
     try {
         let doc = await Restaurant.findOne({ restaurant: restaurantName });
@@ -83,11 +91,13 @@ async function fetchAndMergeFatSecret(restaurantName) {
             }
         });
 
+        // Process the raw data from the API
         const data = response.data.foods;
         let cleanItems = [];
 
         if (data && data.food) {
             let items = Array.isArray(data.food) ? data.food : [data.food];
+            // Filter out items that don't have calorie counts and parse their nutrition info
             cleanItems = items
                 .filter(item => item.food_description && /calories:\s*\d+/i.test(item.food_description))
                 .map(item => {
@@ -103,6 +113,7 @@ async function fetchAndMergeFatSecret(restaurantName) {
 
         if (cleanItems.length === 0) return doc; 
 
+        // Save new menu items to my database, only adding items that don't already exist
         if (!doc) {
             doc = new Restaurant({ restaurant: restaurantName, servings: cleanItems });
         } else {
@@ -118,17 +129,21 @@ async function fetchAndMergeFatSecret(restaurantName) {
         return doc;
 
     } catch (error) {
-        console.error(`[ERROR] Processing ${restaurantName}:`, error.message);
+        console.error(`[ERROR] Processing menu data for ${restaurantName}:`, error.message);
         return null;
     }
 }
 
+// --- API ROUTES ---
+
+// Route 1: /api/browse (Used by the Home Page carousel to view raw database contents)
 app.get('/api/browse', async (req, res) => {
     try {
         const search = req.query.search || "";
         
         let query = {};
         if (search) {
+            // Allows searching for restaurants by name (case-insensitive)
             query.restaurant = { $regex: search, $options: 'i' };
         }
 
@@ -139,24 +154,27 @@ app.get('/api/browse', async (req, res) => {
     }
 });
 
+// Route 2: /api/rank-restaurants (The main dashboard data provider)
 app.post('/api/rank-restaurants', async (req, res) => {
   try {
     const rawNames = req.body.restaurantNames;
     const limitPerRestaurant = req.body.limit || 50;
     const uniqueNames = [...new Set(rawNames)];
     
+    // This route does the heavy lifting: it calculates the Protein/Calorie ratio for every menu item,
+    // groups the menu items by restaurant, keeps only the healthiest items, and sends back a ranked list.
     const rankedResults = await Restaurant.aggregate([
-        { $match: { restaurant: { $in: uniqueNames } } },
-        { $unwind: "$servings" },
+        { $match: { restaurant: { $in: uniqueNames } } }, // 1. Only look at the restaurants requested
+        { $unwind: "$servings" }, // 2. Separate every menu item into its own row temporarily
         { $addFields: {
-            ratio: { 
+            ratio: { // 3. Calculate my custom health score: Protein / Calories
                 $cond: [ { $gt: ["$servings.calories", 0] }, { $divide: ["$servings.protein", "$servings.calories"] }, 0 ]
             }
         }},
-        { $sort: { ratio: -1 } }, 
+        { $sort: { ratio: -1 } }, // 4. Sort all menu items by my health score (best items first)
         { $group: {
             _id: "$restaurant",
-            menu: { 
+            menu: { // 5. Put the top-ranked menu items back into a menu array for that restaurant
                 $push: { 
                     item: "$servings.food_name",
                     cal: "$servings.calories",
@@ -164,23 +182,24 @@ app.post('/api/rank-restaurants', async (req, res) => {
                     score: "$ratio"
                 } 
             },
-            highestScore: { $first: "$ratio" }
+            highestScore: { $first: "$ratio" } // Track the absolute best score for the restaurant
         }},
-        { $project: { menu: { $slice: ["$menu", limitPerRestaurant] }, highestScore: 1 }},
-        { $sort: { highestScore: -1 } }
+        { $project: { menu: { $slice: ["$menu", limitPerRestaurant] }, highestScore: 1 }}, // 6. Only keep the top 'X' menu items
+        { $sort: { highestScore: -1 } } // 7. Final sort: Rank the restaurants themselves by their best item
     ]);
 
     res.json(rankedResults);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error during ranking' });
   }
 });
 
+// Route 3: /api/update-single (Used by the dashboard to update one restaurant in the background)
 app.post('/api/update-single', async (req, res) => {
     const name = req.body.restaurantName;
     try {
-        await fetchAndMergeFatSecret(name);
+        await fetchAndMergeFatSecret(name); // Runs the fetch/merge logic
         res.json({ success: true });
     } catch (e) {
         console.error(e);
@@ -188,10 +207,10 @@ app.post('/api/update-single', async (req, res) => {
     }
 });
 
-// --- NEW CLEANUP ROUTE ---
+// Route 4: /api/cleanup (Used by the Home Page to keep the database tidy)
 app.delete('/api/cleanup', async (req, res) => {
     try {
-        // 1. Remove bad items inside arrays
+        // 1. Remove menu items that somehow ended up blank or incomplete
         const pullResult = await Restaurant.updateMany({}, {
             $pull: { 
                 servings: { 
@@ -205,7 +224,7 @@ app.delete('/api/cleanup', async (req, res) => {
             }
         });
 
-        // 2. Remove restaurants that are now empty
+        // 2. Delete any entire restaurants that no longer have any menu items after step 1
         const deleteResult = await Restaurant.deleteMany({
             $or: [
                 { servings: { $exists: false } }, 
@@ -225,6 +244,7 @@ app.delete('/api/cleanup', async (req, res) => {
     }
 });
 
+// Route 5: /api/config (Sends the Google Maps API Key to the client securely)
 app.get('/api/config', (req, res) => res.json({ apiKey: process.env.GOOGLE_MAPS_KEY }));
 
 const PORT = 3000;

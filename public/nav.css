@@ -1,0 +1,19 @@
+/* NAVIGATION STYLES: Defines the look of the top bar on all pages */
+nav {
+    background: white; border-bottom: 1px solid #ddd;
+    display: flex; align-items: center; padding: 0 20px;
+    justify-content: space-between; 
+    height: 60px;
+    flex-shrink: 0; 
+}
+nav ul { list-style: none; display: flex; gap: 20px; }
+nav a { text-decoration: none; color: #555; font-weight: 500; }
+nav a:hover { color: #4CAF50; /* Primary Green Hover */ }
+
+/* DASHBOARD NAV SPECIFIC STATUS TEXT */
+.status-text {
+    color: #009688; /* : Accent Teal color for status updates */
+    font-size: 0.85em;
+    font-weight: bold;
+    margin-right: 15px;
+}
