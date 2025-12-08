@@ -20,7 +20,7 @@
     overflow: hidden;
 }
 
-/* Styling for the  "Sort By" Header */
+/* Styling for the "Sort By" Header */
 .control-header {
     margin-bottom: 5px;
 }
@@ -99,8 +99,8 @@
     background: #4CAF50; /* Primary Green */ color: white; border-color: #388E3C;
     font-weight: bold;
 }
-.brand-tag:hover { background: #d5e6d5; } /* Restored hover color for non-active tags */
-.brand-tag.active:hover { background: #388E3C; } /* Restored active hover color */
+.brand-tag:hover { background: #d5e6d5; } 
+.brand-tag.active:hover { background: #388E3C; } 
 
 
 /* Map Frame */
@@ -114,7 +114,6 @@
 
 /* --- Sidebar (List) --- */
 
-/* **FIXED MISSING SECTION** */
 .sidebar {
     background: white;
     border-radius: 12px;
@@ -126,11 +125,10 @@
     overflow: hidden; 
 }
 
-/* **CLEANED DUPLICATES** */
 .sidebar-header {
     padding: 10px; 
-    border-bottom: 1px solid #e0e0e0; /* Cleaned to fit theme */
-    background: #f7faf7; /* : Light background */ 
+    border-bottom: 1px solid #e0e0e0; 
+    background: #f7faf7; /* Theme Light Background */ 
     flex-shrink: 0; 
 }
 
@@ -147,7 +145,7 @@
     padding: 12px 15px; border-bottom: 1px solid #f0f0f0;
     cursor: pointer; transition: background 0.2s;
 }
-.food-item-row:hover { background: #f7faf7; } /* Cleaned hover background */
+.food-item-row:hover { background: #f7faf7; } /* Hover background restored to theme color */
 .food-info h4 { margin: 0 0 2px 0; font-size: 0.95em; color: #333; }
 .food-info .meta { font-size: 0.8em; color: #888; }
 .food-stats .macros { font-size: 0.75em; color: #666; display:block; margin-top:2px; }
