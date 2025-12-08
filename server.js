@@ -10,19 +10,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- CONNECT TO MONGODB ---
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
-    console.log("[DB] MongoDB Connected");
-    try {
-        const col = mongoose.connection.collection('restaurant_info');
-        await col.dropIndex('food_id_1'); 
-        await col.dropIndex('restaurant_1_food_id_1'); 
-    } catch (e) { }
+    console.log("[DB] Connected.");
   })
-  .catch(err => console.error("[DB] MongoDB Error:", err));
+  .catch(err => console.error("[DB] Error:", err));
 
-// --- CLEAN SCHEMA ---
 const restaurantSchema = new mongoose.Schema({
   restaurant: String, 
   lastUpdated: { type: Date, default: Date.now },
@@ -36,7 +29,6 @@ const restaurantSchema = new mongoose.Schema({
 
 const Restaurant = mongoose.model('Restaurant', restaurantSchema);
 
-// --- FATSECRET AUTH HELPER ---
 let cachedToken = null;
 let tokenExpiry = 0;
 
@@ -57,16 +49,13 @@ async function getFatSecretToken() {
         tokenExpiry = now + (response.data.expires_in * 1000);
         return cachedToken;
     } catch (error) {
-        console.error("[AUTH ERROR]", error.message);
-        if (error.response) console.error("Details:", error.response.data);
+        console.error("[AUTH ERROR] Token fetch failed:", error.message);
         return null;
     }
 }
 
-// --- PARSE NUTRIENTS STRING ---
 function parseNutrients(description) {
     if (!description) return { calories: 0, protein: 0, carbs: 0 };
-    
     const getVal = (regex) => {
         const match = description.match(regex);
         return match ? parseFloat(match[1]) : 0;
@@ -78,104 +67,54 @@ function parseNutrients(description) {
     };
 }
 
-// --- MAIN SEARCH LOGIC (ROBUST) ---
 async function fetchAndMergeFatSecret(restaurantName) {
     try {
+        let doc = await Restaurant.findOne({ restaurant: restaurantName });
         const token = await getFatSecretToken();
         if (!token) return null;
 
-        let candidates = [restaurantName];
-        const words = restaurantName.split(' ');
-
-        if (words.length > 1) {
-            for (let i = words.length - 1; i >= 1; i--) {
-                const subString = words.slice(0, i).join(' ');
-                // Guard: Prevent reducing to single word
-                if (i === 1 && words.length > 1) continue; 
-                candidates.push(subString);
+        const response = await axios.get('https://platform.fatsecret.com/rest/foods/search/v1', {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { 
+                search_expression: restaurantName, 
+                format: 'json', 
+                max_results: 50, 
+                page_number: 0 
             }
-        }
-        
-        if (restaurantName.includes("'")) {
-            candidates.push(restaurantName.replace("'", ""));
-        }
-        candidates = [...new Set(candidates)];
+        });
 
-        console.log(`[SEARCH] Processing: ${restaurantName}`);
-        let foundItems = null;
+        const data = response.data.foods;
+        let cleanItems = [];
 
-        for (const term of candidates) {
-            if (term.length < 3) continue;
-
-            try {
-                const response = await axios.get('https://platform.fatsecret.com/rest/foods/search/v1', {
-                    headers: { Authorization: `Bearer ${token}` },
-                    params: {
-                        search_expression: term,
-                        format: 'json',
-                        max_results: 50,
-                        page_number: 0
-                    }
+        if (data && data.food) {
+            let items = Array.isArray(data.food) ? data.food : [data.food];
+            cleanItems = items
+                .filter(item => item.food_description && /calories:\s*\d+/i.test(item.food_description))
+                .map(item => {
+                    const macros = parseNutrients(item.food_description);
+                    return {
+                        food_name: item.food_name,
+                        calories: macros.calories,
+                        protein: macros.protein,
+                        carbohydrate: macros.carbs
+                    };
                 });
-
-                // --- CRASH PREVENTION CHECK ---
-                if (response.data.error) {
-                    console.error(`[API ERROR] FatSecret Error for "${term}": ${response.data.error.message}`);
-                    continue; // Skip this candidate if API rejects it
-                }
-
-                const data = response.data.foods;
-                if (data && data.food) {
-                    let items = Array.isArray(data.food) ? data.food : [data.food];
-                    
-                    const hasCalories = items.some(i => 
-                        i.food_description && /calories:/i.test(i.food_description)
-                    );
-
-                    if (hasCalories) {
-                        console.log(`   [MATCH] Found using: "${term}"`);
-                        foundItems = items;
-                        break; 
-                    }
-                }
-            } catch (err) { 
-                console.error(`[REQ ERROR] Failed request for "${term}":`, err.message);
-            }
         }
 
-        if (!foundItems) {
-            console.log(`   [INFO] No valid results found for ${restaurantName}.`);
-            return null;
-        }
+        if (cleanItems.length === 0) return doc; 
 
-        const cleanItems = foundItems
-            .filter(item => item.food_description && /calories:\s*\d+/i.test(item.food_description))
-            .map(item => {
-                const macros = parseNutrients(item.food_description);
-                return {
-                    food_name: item.food_name,
-                    calories: macros.calories,
-                    protein: macros.protein,
-                    carbohydrate: macros.carbs
-                };
-            });
-
-        let doc = await Restaurant.findOne({ restaurant: restaurantName });
         if (!doc) {
             doc = new Restaurant({ restaurant: restaurantName, servings: cleanItems });
-            await doc.save();
-            console.log(`   [DB] Saved ${cleanItems.length} items.`);
         } else {
-            let added = 0;
             cleanItems.forEach(newItem => {
-                if (!doc.servings.some(s => s.food_name === newItem.food_name)) {
+                const exists = doc.servings.some(s => s.food_name === newItem.food_name);
+                if (!exists) {
                     doc.servings.push(newItem);
-                    added++;
                 }
             });
-            await doc.save();
-            console.log(`   [DB] Updated with ${added} new items.`);
         }
+
+        await doc.save();
         return doc;
 
     } catch (error) {
@@ -184,20 +123,28 @@ async function fetchAndMergeFatSecret(restaurantName) {
     }
 }
 
-// --- API ROUTES ---
+app.get('/api/browse', async (req, res) => {
+    try {
+        const search = req.query.search || "";
+        
+        let query = {};
+        if (search) {
+            query.restaurant = { $regex: search, $options: 'i' };
+        }
+
+        const items = await Restaurant.find(query).limit(50); 
+        res.json(items);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.post('/api/rank-restaurants', async (req, res) => {
   try {
     const rawNames = req.body.restaurantNames;
+    const limitPerRestaurant = req.body.limit || 50;
     const uniqueNames = [...new Set(rawNames)];
-
-    // Fetch in chunks
-    const chunkSize = 5;
-    for (let i = 0; i < uniqueNames.length; i += chunkSize) {
-        const chunk = uniqueNames.slice(i, i + chunkSize);
-        await Promise.all(chunk.map(name => fetchAndMergeFatSecret(name)));
-    }
-
+    
     const rankedResults = await Restaurant.aggregate([
         { $match: { restaurant: { $in: uniqueNames } } },
         { $unwind: "$servings" },
@@ -219,16 +166,63 @@ app.post('/api/rank-restaurants', async (req, res) => {
             },
             highestScore: { $first: "$ratio" }
         }},
-        { $project: { menu: { $slice: ["$menu", 50] }, highestScore: 1 }},
+        { $project: { menu: { $slice: ["$menu", limitPerRestaurant] }, highestScore: 1 }},
         { $sort: { highestScore: -1 } }
     ]);
 
     res.json(rankedResults);
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
+});
+
+app.post('/api/update-single', async (req, res) => {
+    const name = req.body.restaurantName;
+    try {
+        await fetchAndMergeFatSecret(name);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(e);
+        res.json({ success: false }); 
+    }
+});
+
+// --- NEW CLEANUP ROUTE ---
+app.delete('/api/cleanup', async (req, res) => {
+    try {
+        // 1. Remove bad items inside arrays
+        const pullResult = await Restaurant.updateMany({}, {
+            $pull: { 
+                servings: { 
+                    $or: [
+                        { food_name: { $exists: false } }, 
+                        { food_name: null }, 
+                        { food_name: "undefined" },
+                        { food_name: "" }
+                    ]
+                } 
+            }
+        });
+
+        // 2. Remove restaurants that are now empty
+        const deleteResult = await Restaurant.deleteMany({
+            $or: [
+                { servings: { $exists: false } }, 
+                { servings: { $size: 0 } }
+            ]
+        });
+
+        res.json({ 
+            success: true, 
+            itemsRemoved: pullResult.modifiedCount, 
+            restaurantsRemoved: deleteResult.deletedCount 
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/api/config', (req, res) => res.json({ apiKey: process.env.GOOGLE_MAPS_KEY }));

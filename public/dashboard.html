@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HealthyRoute - Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .result-count {
+            font-size: 0.8em; color: #888; text-align: center; margin-top: 5px;
+        }
+
+        .status-text {
+            color: #666;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p style="margin-top:15px; font-weight:bold; color:#555;">Scanning menus...</p>
+    </div>
+
+    <nav>
+        <div style="display:flex; align-items:center; gap:15px;">
+            <div class="logo">HealthyRoute</div>
+            <a href="index.html" style="color:#555; text-decoration:none; font-size: 0.9em;">&larr; Home</a>
+        </div>
+        
+        <div style="display:flex; align-items:center;">
+            <span id="updateStatus" class="status-text"></span>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        
+        <div class="map-column">
+            
+            <div class="map-controls">
+                <div class="controls-grid">
+                    
+                    <div class="control-item full-width">
+                        <div class="sort-btn-group">
+                            <button class="sort-btn active" data-sort="distance">Dist</button>
+                            <button class="sort-btn" data-sort="health">Ratio</button>
+                            <button class="sort-btn" data-sort="protein">Prot</button>
+                            <button class="sort-btn" data-sort="calories">Cal</button>
+                        </div>
+                    </div>
+
+                    <div class="control-item">
+                        <label>Dist: <span id="distVal">3</span> mi</label>
+                        <input type="range" id="distSlider" min="1" max="50" value="3">
+                    </div>
+
+                    <div class="control-item">
+                        <label>Limit: <span id="limitVal">10</span></label>
+                        <input type="range" id="itemLimitSlider" min="5" max="50" value="10" step="5">
+                    </div>
+
+                    <div class="control-item">
+                        <label>Max Cal: <span id="calVal">1000</span></label>
+                        <input type="range" id="maxCals" min="100" max="2000" step="50" value="1000">
+                    </div>
+                    
+                    <div class="control-item">
+                        <label>Min Prot: <span id="protVal">20</span>g</label>
+                        <input type="range" id="minProt" min="0" max="100" step="5" value="20">
+                    </div>
+                </div>
+
+                <div class="brand-toggles-container">
+                    <label>Filter:</label>
+                    <div id="brand-toggles" class="brand-toggles"></div>
+                </div>
+            </div>
+
+            <div class="map-frame">
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div id="locationCount" class="result-count" style="color:#333; font-weight:bold;">Found 0 locations</div>
+                <div id="resultCount" class="result-count">Found 0 items</div>
+            </div>
+
+            <div id="results-list" class="results-list">
+                <p style="padding:20px; color:#888;">Initializing map...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+    <script>
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(config => {
+                const s = document.createElement('script');
+                s.src = `https://maps.googleapis.com/maps/api/js?key=${config.apiKey}&libraries=places,geometry&callback=initDashboard`;
+                document.head.appendChild(s);
+            })
+            .catch(err => console.error(err));
+    </script>
+</body>
+</html>

@@ -1,165 +1,127 @@
-// public/script.js
+document.addEventListener('DOMContentLoaded', async () => {
+    // --- HERO SECTION LOGIC ---
+    const heroRadius = document.getElementById('heroRadius');
+    const heroRadiusVal = document.getElementById('heroRadiusVal');
+    const heroLimit = document.getElementById('heroLimit');
+    const heroLimitVal = document.getElementById('heroLimitVal');
+    const goBtn = document.getElementById('goToDashboardBtn');
 
-let map;
-let service;
-let markers = [];
+    heroRadius.addEventListener('input', (e) => {
+        heroRadiusVal.textContent = e.target.value;
+    });
+    heroLimit.addEventListener('input', (e) => {
+        heroLimitVal.textContent = e.target.value;
+    });
 
-function initMap() {
-    // 1. Get User Location
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-            const userLocation = {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude
-            };
+    goBtn.addEventListener('click', () => {
+        const r = heroRadius.value;
+        const l = heroLimit.value;
+        window.location.href = `dashboard.html?radius=${r}&limit=${l}`;
+    });
 
-            // 2. Render Map
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: userLocation,
-                zoom: 14,
-                styles: [ /* Optional: Add cool map styles here */ ]
-            });
+    // --- CAROUSEL LOGIC ---
+    const dbSearch = document.getElementById('dbSearch');
+    const prevBtn = document.getElementById('prevRestBtn');
+    const nextBtn = document.getElementById('nextRestBtn');
+    const cardContainer = document.getElementById('restaurantCard');
+    const counterDisplay = document.getElementById('counterDisplay');
+    const cleanStatus = document.getElementById('cleanStatus');
 
-            // User's Location Marker (Blue Dot)
-            new google.maps.Marker({
-                position: userLocation,
-                map: map,
-                title: "You are here",
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 7,
-                    fillColor: "#4285F4",
-                    fillOpacity: 1,
-                    strokeWeight: 2,
-                    strokeColor: "white",
-                }
-            });
+    let restaurants = [];
+    let currentIndex = 0;
 
-            // 3. Search for Fast Food
-            service = new google.maps.places.PlacesService(map);
-            service.nearbySearch(
-                {
-                    location: userLocation,
-                    radius: 5000, 
-                    keyword: "fast food",
-                    type: "restaurant"
-                },
-                handleNearbyResults
-            );
-
-        }, () => {
-            console.error("Geolocation failed.");
-        });
-    } else {
-        console.error("Browser doesn't support geolocation.");
-    }
-}
-
-function handleNearbyResults(results, status) {
-    if (status !== google.maps.places.PlacesServiceStatus.OK) return;
-
-    const fastFood20 = results.slice(0, 20);
-    const namesOnly = fastFood20.map(place => place.name);
-
-    // SHOW LOADER
-    document.getElementById("loading-overlay").style.display = "flex";
-
-    fetch('/api/rank-restaurants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ restaurantNames: namesOnly })
-    })
-    .then(response => response.json())
-    .then(rankedData => {
-        displayResults(rankedData);
-        addMapMarkers(fastFood20, rankedData);
+    // --- AUTO CLEANUP ON LAUNCH ---
+    try {
+        console.log("Starting auto-cleanup...");
+        cleanStatus.textContent = "Cleaning database...";
         
-        // HIDE LOADER
-        document.getElementById("loading-overlay").style.display = "none";
-    })
-    .catch(err => {
-        console.error(err);
-        // HIDE LOADER on error too
-        document.getElementById("loading-overlay").style.display = "none";
-    });
-}
-
-function addMapMarkers(googlePlaces, healthData) {
-    // Clear old markers
-    markers.forEach(m => m.setMap(null));
-    markers = [];
-
-    const infoWindow = new google.maps.InfoWindow();
-
-    googlePlaces.forEach(place => {
-        // CHECK: Do we have health data for this place?
-        const healthInfo = healthData.find(h => h._id === place.name);
-
-        // FILTER: If no health data, DO NOT add a marker (as per your request)
-        if (!healthInfo) return;
-
-        const marker = new google.maps.Marker({
-            map: map,
-            position: place.geometry.location,
-            title: place.name,
-            animation: google.maps.Animation.DROP
-        });
-
-        // Content for the popup
-        const bestItem = healthInfo.menu[0]; // Top item
-        const contentString = `
-            <div style="padding:5px;">
-                <h3 style="margin:0;">${place.name}</h3>
-                <p style="margin:5px 0;">${place.vicinity}</p>
-                <hr>
-                <p style="color:#2E7D32; font-weight:bold;">Top Pick: ${bestItem.item}</p>
-                <p>${bestItem.cal} Cal | ${bestItem.prot}g Protein</p>
-            </div>`;
-
-        marker.addListener("click", () => {
-            infoWindow.setContent(contentString);
-            infoWindow.open(map, marker);
-        });
-
-        markers.push(marker);
-    });
-}
-
-function displayResults(rankedData) {
-    const container = document.getElementById("results-list");
-    container.innerHTML = ""; 
-
-    if (rankedData.length === 0) {
-        container.innerHTML = "<p>No matching healthy options found.</p>";
-        return;
+        const cleanRes = await fetch('/api/cleanup', { method: 'DELETE' });
+        const cleanData = await cleanRes.json();
+        
+        console.log(`Cleanup complete. Removed ${cleanData.itemsRemoved} items and ${cleanData.restaurantsRemoved} empty restaurants.`);
+        cleanStatus.textContent = "Database optimized.";
+        
+        // Hide status after 3 seconds
+        setTimeout(() => { cleanStatus.textContent = ""; }, 3000);
+    } catch (err) {
+        console.error("Auto-cleanup failed:", err);
+        cleanStatus.textContent = "Cleanup failed (Server Error)";
     }
 
-    rankedData.forEach(restaurant => {
-        const card = document.createElement("div");
-        card.className = "card";
+    // --- FETCH DATA (After Cleanup) ---
+    fetchRestaurants("");
 
-        let htmlContent = `<h3>${restaurant._id}</h3>`;
-        
-        // Mini-table for top 3 items
-        htmlContent += `<table style="width:100%; font-size: 0.9em; border-collapse: collapse; margin-top: 5px;">
-                        <tr style="border-bottom: 1px solid #ddd; text-align: left; color: #555;">
-                            <th>Item</th>
-                            <th>Cal</th>
-                            <th>Prot</th>
-                        </tr>`;
-        
-        restaurant.menu.forEach(food => {
-            htmlContent += `
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 4px 0;">${food.item}</td>
-                    <td>${food.cal}</td>
-                    <td>${food.prot}g</td>
-                </tr>
-            `;
-        });
-        
-        htmlContent += `</table>`;
-        card.innerHTML = htmlContent;
-        container.appendChild(card);
+    // Search Listener
+    dbSearch.addEventListener('input', (e) => {
+        const term = e.target.value;
+        fetchRestaurants(term);
     });
-}
+
+    // Navigation Listeners
+    prevBtn.addEventListener('click', () => {
+        if (restaurants.length === 0) return;
+        currentIndex--;
+        if (currentIndex < 0) {
+            currentIndex = restaurants.length - 1; 
+        }
+        renderCurrentCard();
+    });
+
+    nextBtn.addEventListener('click', () => {
+        if (restaurants.length === 0) return;
+        currentIndex++;
+        if (currentIndex >= restaurants.length) {
+            currentIndex = 0; 
+        }
+        renderCurrentCard();
+    });
+
+    async function fetchRestaurants(searchTerm) {
+        try {
+            const query = encodeURIComponent(searchTerm);
+            const response = await fetch(`/api/browse?search=${query}`);
+            const data = await response.json();
+            
+            restaurants = data;
+            currentIndex = 0; 
+            renderCurrentCard();
+        } catch (error) {
+            console.error("Failed to load restaurants", error);
+            cardContainer.innerHTML = '<div class="empty-state">Error loading data.</div>';
+        }
+    }
+
+    function renderCurrentCard() {
+        if (restaurants.length === 0) {
+            cardContainer.innerHTML = '<div class="empty-state">No restaurants found.</div>';
+            counterDisplay.textContent = "";
+            return;
+        }
+
+        const data = restaurants[currentIndex];
+        counterDisplay.textContent = `${currentIndex + 1} / ${restaurants.length}`;
+
+        let menuHtml = '';
+        if (data.servings && data.servings.length > 0) {
+            menuHtml = data.servings.map(item => `
+                <div class="menu-item-row">
+                    <div class="menu-item-name">${item.food_name}</div>
+                    <div class="menu-item-stats">
+                        ${item.protein}g P / ${item.calories} Cal
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            menuHtml = '<p style="text-align:center; color:#999;">No menu items available.</p>';
+        }
+
+        cardContainer.innerHTML = `
+            <div class="frame-header">
+                <h2>${data.restaurant}</h2>
+            </div>
+            <div class="frame-body">
+                ${menuHtml}
+            </div>
+        `;
+    }
+});
