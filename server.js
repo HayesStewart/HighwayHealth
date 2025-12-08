@@ -247,5 +247,5 @@ app.delete('/api/cleanup', async (req, res) => {
 // Route 5: /api/config (Sends the Google Maps API Key to the client securely)
 app.get('/api/config', (req, res) => res.json({ apiKey: process.env.GOOGLE_MAPS_KEY }));
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`[SYS] Server running at http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000; // Use Heroku's assigned port, or 3000 locally
+app.listen(PORT, () => console.log(`[SYS] Server running on port ${PORT}`));
