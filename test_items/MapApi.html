@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Healthy Fast Food Finder</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+    }
+
+    /* The Map takes up 70% of the screen */
+    #map {
+      width: 70%;
+      height: 100%;
+    }
+
+    /* The Results Panel takes up 30% */
+    #sidebar {
+      width: 30%;
+      height: 100%;
+      overflow-y: auto;
+      padding: 20px;
+      box-sizing: border-box;
+      background: #f9f9f9;
+      border-left: 2px solid #ddd;
+    }
+
+    /* Card Styling for each restaurant */
+    .card {
+      background: white;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card h3 { margin: 0 0 5px 0; font-size: 1.1em; }
+    .card p { margin: 5px 0; color: #555; font-size: 0.9em; }
+    .badge {
+      background-color: #4CAF50;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <div id="sidebar">
+    <h2>Healthiest Nearby</h2>
+    <div id="results-list">Loading map...</div>
+  </div>
+
+<script>
+let map;
+let service;
+
+function initMap() {
+  // 1. Get User Location
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const userLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
+
+      // 2. Render Map
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: userLocation,
+        zoom: 14
+      });
+
+      new google.maps.Marker({
+        position: userLocation,
+        map: map,
+        title: "You are here"
+      });
+
+      // 3. Search for Fast Food
+      service = new google.maps.places.PlacesService(map);
+      service.nearbySearch(
+        {
+          location: userLocation,
+          radius: 5000, // 5km radius
+          keyword: "fast food",
+          type: "restaurant"
+        },
+        handleNearbyResults
+      );
+
+    }, () => {
+      handleLocationError(true, map.getCenter());
+    });
+  } else {
+    // Browser doesn't support Geolocation
+    handleLocationError(false, map.getCenter());
+  }
+}
+
+function handleNearbyResults(results, status) {
+  if (status !== google.maps.places.PlacesServiceStatus.OK) {
+    console.error("Search failed:", status);
+    document.getElementById("results-list").innerText = "No fast food found nearby.";
+    return;
+  }
+
+  console.log("Google Maps found:", results);
+
+  // 1. Extract names to send to your Backend
+  // We take the top 20 results
+  const fastFood20 = results.slice(0, 20);
+  const namesOnly = fastFood20.map(place => place.name);
+
+  // 2. Send to Node.js Server for "Health Ranking"
+  // Make sure your server is running (node server.js)
+  fetch('http://localhost:3000/api/rank-restaurants', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ restaurantNames: namesOnly })
+  })
+  .then(response => response.json())
+  .then(rankedData => {
+    console.log("Sorted Data from Backend:", rankedData);
+    displayResults(rankedData, fastFood20);
+  })
+  .catch(err => {
+    console.error("Backend Error:", err);
+    document.getElementById("results-list").innerText = "Error connecting to database. Is the server running?";
+  });
+}
+
+// Function to render the cards on the sidebar
+function displayResults(rankedData, googleData) {
+  const container = document.getElementById("results-list");
+  container.innerHTML = ""; // Clear "Loading..." text
+
+  if (rankedData.length === 0) {
+    container.innerHTML = "<p>No matching healthy options found in database.</p>";
+    return;
+  }
+
+  rankedData.forEach(item => {
+    // Create a card for each restaurant
+    const card = document.createElement("div");
+    card.className = "card";
+
+    // Format the Health Score (Protein/Calorie ratio)
+    const score = (item.healthScore * 10).toFixed(1); 
+
+    card.innerHTML = `
+      <h3>${item._id} <span class="badge">Score: ${score}</span></h3>
+      <p><b>Best Option:</b> ${item.bestItem}</p>
+      <p>Calories: ${item.calories} | Protein: ${item.protein}g</p>
+    `;
+
+    container.appendChild(card);
+    
+    // OPTIONAL: Add a marker on the map for this specific place?
+    // You would match item._id (name) with googleData to find the lat/lng
+  });
+}
+
+function handleLocationError(browserHasGeolocation, pos) {
+  console.log(browserHasGeolocation ?
+    "Error: The Geolocation service failed." :
+    "Error: Your browser doesn't support geolocation.");
+}
+</script>
+
+<script async
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCMn5i8ZDIUSAzurCTpH4XRtf7GAYsGbvs&libraries=places&callback=initMap">
+</script>
+
+</body>
+</html>

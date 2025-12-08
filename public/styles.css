@@ -1,0 +1,100 @@
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f4f4;
+}
+
+/* Navigation Bar */
+nav {
+    background-color: #333;
+    color: white;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+nav .logo {
+    font-weight: bold;
+    font-size: 1.2em;
+    color: #4CAF50;
+}
+
+nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+}
+
+nav ul li {
+    margin-left: 20px;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    font-size: 1em;
+    transition: color 0.3s;
+}
+
+nav a:hover {
+    color: #4CAF50;
+}
+
+/* Main Content Containers */
+.container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Card Styling (Used on both pages) */
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Map Layout Specifics */
+.map-container {
+    display: flex;
+    height: calc(100vh - 60px); /* Full height minus nav bar */
+}
+#map { width: 70%; height: 100%; }
+#sidebar { width: 30%; height: 100%; overflow-y: auto; padding: 20px; background: white; }
+
+/* Loading Overlay */
+#loading-overlay {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.spinner {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #4CAF50;
+    border-radius: 50%;
+    width: 60px; height: 60px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    margin-top: 15px;
+    font-size: 1.2em;
+    color: #333;
+    font-weight: bold;
+}

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HealthyRoute Dashboard</title>
+    <link rel="stylesheet" href="styles.css"> 
+    <style>
+        /* --- LAYOUT GRID --- */
+        body {
+            display: grid;
+            grid-template-rows: 60px 1fr; /* Nav bar + Main Content */
+            height: 100vh;
+            overflow: hidden;
+            background-color: #f4f7f6;
+        }
+
+        nav { grid-row: 1; }
+
+        /* Main Container: Map (Left) | Sidebar (Right) */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 1fr 450px; /* Sidebar fixed at 450px */
+            gap: 20px;
+            padding: 20px;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        /* --- MAP FRAME --- */
+        .map-frame {
+            background: white;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+
+        /* Controls Section (Top of Sidebar) */
+        .controls-header {
+            padding: 20px;
+            background: #fff;
+            border-bottom: 1px solid #eee;
+            z-index: 10;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .control-item label { font-size: 0.75em; font-weight: bold; color: #666; display: block; margin-bottom: 4px; }
+        .control-item input, .control-item select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; background: #fafafa;}
+
+        /* Brand Filters */
+        .brand-toggles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-height: 100px;
+            overflow-y: auto;
+            padding: 5px 0;
+        }
+        .brand-tag {
+            font-size: 0.75em;
+            background: #f0f0f0;
+            padding: 4px 10px;
+            border-radius: 15px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            user-select: none;
+            transition: all 0.2s;
+        }
+        .brand-tag.active {
+            background: #e8f5e9;
+            color: #2E7D32;
+            border-color: #c8e6c9;
+            font-weight: bold;
+        }
+
+        /* --- RESULTS LIST --- */
+        #results-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            background: #fff;
+        }
+
+        /* Individual Food Item Row */
+        .food-item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #f9f9f9;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .food-item-row:hover { background: #f4f9f4; }
+        
+        .food-info h4 { margin: 0 0 4px 0; font-size: 0.95em; color: #333; }
+        .food-info .meta { font-size: 0.8em; color: #888; display: flex; align-items: center; gap: 5px;}
+        .food-info .brand-badge { background: #333; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; }
+        
+        .food-stats { text-align: right; min-width: 80px;}
+        .food-stats .score { color: #2E7D32; font-weight: bold; font-size: 1.2em; display: block; }
+        .food-stats .macros { font-size: 0.75em; color: #666; }
+
+        /* Loader */
+        #loading-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.9); z-index: 1000;
+            justify-content: center; align-items: center; flex-direction: column;
+        }
+        .spinner {
+            border: 6px solid #f3f3f3; border-top: 6px solid #4CAF50; border-radius: 50%;
+            width: 50px; height: 50px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p style="margin-top:15px; font-weight:bold; color:#555;">Scanning menus...</p>
+    </div>
+
+    <nav>
+        <div class="logo" style="margin-left: 20px;">HealthyRoute</div>
+        <ul style="margin-right: 20px;">
+            <li><a href="#" class="active">Map Dashboard</a></li>
+        </ul>
+    </nav>
+
+    <div class="dashboard-container">
+        
+        <div class="map-frame">
+            <div id="map"></div>
+        </div>
+
+        <div class="sidebar">
+            
+            <div class="controls-header">
+                <div class="controls-grid">
+                    <div class="control-item">
+                        <label>Sort By</label>
+                        <select id="sortMetric" onchange="applyFilters()">
+                            <option value="health">Health Score (Best)</option>
+                            <option value="protein">Highest Protein</option>
+                            <option value="calories">Lowest Calories</option>
+                        </select>
+                    </div>
+                    <div class="control-item">
+                        <label>Max Calories</label>
+                        <input type="number" id="maxCals" value="900" step="50" onchange="applyFilters()">
+                    </div>
+                    <div class="control-item">
+                        <label>Min Protein (g)</label>
+                        <input type="number" id="minProt" value="20" step="5" onchange="applyFilters()">
+                    </div>
+                    <div class="control-item">
+                        <label>Search Radius</label>
+                        <select id="maxDist" onchange="applyFilters()">
+                            <option value="5000">5 miles</option>
+                            <option value="3200">2 miles</option>
+                            <option value="1600">1 mile</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="control-item">
+                    <label>Filter Chains:</label>
+                    <div id="brand-toggles" class="brand-toggles">
+                        <span style="font-size:0.8em; color:#888;">Loading brands...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="results-list">
+                <p style="padding: 20px; color:#888; text-align: center;">Waiting for location...</p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let service;
+        let markers = [];
+        let infoWindow;
+        let globalUserLoc = null;
+
+        let masterGoogleData = []; 
+        let masterNutritionData = [];
+        let activeBrands = new Set(); 
+
+        // 1. Initialize Map
+        function initMap() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    globalUserLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    
+                    map = new google.maps.Map(document.getElementById("map"), {
+                        center: globalUserLoc, zoom: 14,
+                        disableDefaultUI: true, zoomControl: true,
+                        styles: [
+                            { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
+                        ]
+                    });
+
+                    // User Marker
+                    new google.maps.Marker({
+                        position: globalUserLoc, map: map,
+                        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#4285F4", fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
+                        title: "You"
+                    });
+
+                    infoWindow = new google.maps.InfoWindow();
+
+                    // Search Restaurants
+                    service = new google.maps.places.PlacesService(map);
+                    service.nearbySearch({
+                        location: globalUserLoc, radius: 5000, type: "restaurant", keyword: "fast food"
+                    }, handleGoogleResults);
+
+                }, () => alert("Location permission denied."));
+            }
+        }
+
+        // 2. Fetch Data
+        function handleGoogleResults(results, status) {
+            if (status !== google.maps.places.PlacesServiceStatus.OK) return;
+
+            masterGoogleData = results.slice(0, 20);
+            const names = masterGoogleData.map(p => p.name);
+
+            document.getElementById("loading-overlay").style.display = 'flex';
+
+            fetch('/api/rank-restaurants', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ restaurantNames: names })
+            })
+            .then(res => res.json())
+            .then(data => {
+                masterNutritionData = data;
+                
+                // Init all brands as active
+                data.forEach(d => activeBrands.add(d._id));
+                generateBrandToggles(data);
+                
+                applyFilters();
+                document.getElementById("loading-overlay").style.display = 'none';
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById("loading-overlay").style.display = 'none';
+            });
+        }
+
+        // 3. Generate Toggle Buttons
+        function generateBrandToggles(data) {
+            const container = document.getElementById("brand-toggles");
+            container.innerHTML = "";
+            const uniqueBrands = data.map(d => d._id).sort();
+            
+            uniqueBrands.forEach(brand => {
+                const span = document.createElement("span");
+                span.className = "brand-tag active";
+                span.innerText = brand;
+                span.onclick = () => {
+                    if (activeBrands.has(brand)) {
+                        activeBrands.delete(brand);
+                        span.classList.remove("active");
+                    } else {
+                        activeBrands.add(brand);
+                        span.classList.add("active");
+                    }
+                    applyFilters();
+                };
+                container.appendChild(span);
+            });
+        }
+
+        // 4. CORE LOGIC: Flatten & Sort
+        function applyFilters() {
+            const maxCal = parseInt(document.getElementById("maxCals").value) || 2000;
+            const minProt = parseInt(document.getElementById("minProt").value) || 0;
+            const sortMetric = document.getElementById("sortMetric").value;
+            const maxDistMeters = parseInt(document.getElementById("maxDist").value) || 5000;
+
+            // Clear Markers
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+
+            let unifiedList = [];
+
+            // A. Process Data per Restaurant
+            masterNutritionData.forEach(restaurant => {
+                if (!activeBrands.has(restaurant._id)) return;
+
+                const googlePlace = masterGoogleData.find(g => g.name === restaurant._id);
+                if (!googlePlace) return;
+
+                const dist = google.maps.geometry.spherical.computeDistanceBetween(
+                    googlePlace.geometry.location, new google.maps.LatLng(globalUserLoc)
+                );
+                
+                if (dist > maxDistMeters) return;
+
+                // Add Marker (Only 1 per restaurant)
+                const marker = new google.maps.Marker({
+                    position: googlePlace.geometry.location,
+                    map: map,
+                    title: restaurant._id,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 6,
+                        fillColor: "#FF5252",
+                        fillOpacity: 0.9,
+                        strokeColor: "white",
+                        strokeWeight: 2
+                    }
+                });
+                markers.push(marker);
+
+                // Add Valid Items to Unified List
+                restaurant.menu.forEach(item => {
+                    if (item.cal <= maxCal && item.prot >= minProt) {
+                        unifiedList.push({
+                            food: item.item,
+                            cal: item.cal,
+                            prot: item.prot,
+                            score: item.score, 
+                            restaurant: restaurant._id,
+                            dist: dist,
+                            lat: googlePlace.geometry.location.lat(),
+                            lng: googlePlace.geometry.location.lng(),
+                            marker: marker 
+                        });
+                    }
+                });
+                
+                // Add click listener to marker to scroll to first item (optional enhancement)
+                marker.addListener("click", () => {
+                    infoWindow.setContent(`<b>${restaurant._id}</b><br>Found healthy options here.`);
+                    infoWindow.open(map, marker);
+                });
+            });
+
+            // B. Sort Unified List
+            unifiedList.sort((a, b) => {
+                if (sortMetric === 'protein') return b.prot - a.prot;
+                if (sortMetric === 'calories') return a.cal - b.cal;
+                return b.score - a.score; // Default: Health Ratio
+            });
+
+            // C. Render List
+            const listContainer = document.getElementById("results-list");
+            listContainer.innerHTML = "";
+
+            if (unifiedList.length === 0) {
+                listContainer.innerHTML = "<div style='padding:20px; text-align:center; color:#888'>No items match your filters.</div>";
+                return;
+            }
+
+            unifiedList.forEach(item => {
+                const el = document.createElement("div");
+                el.className = "food-item-row";
+                
+                const displayScore = (item.score * 10).toFixed(1);
+                const distMiles = (item.dist * 0.000621371).toFixed(1);
+
+                el.innerHTML = `
+                    <div class="food-info">
+                        <h4>${item.food}</h4>
+                        <div class="meta">
+                            <span class="brand-badge">${item.restaurant}</span> 
+                            <span style="margin-left:8px;">${distMiles} mi</span>
+                        </div>
+                    </div>
+                    <div class="food-stats">
+                        <span class="score">${displayScore}</span>
+                        <span class="macros">${item.prot}g P / ${item.cal} C</span>
+                    </div>
+                `;
+
+                // Click list item -> Zoom to map
+                el.onclick = () => {
+                    map.setCenter({ lat: item.lat, lng: item.lng });
+                    map.setZoom(16);
+                    infoWindow.setContent(`<b>${item.restaurant}</b><br>${item.food}<br>${item.prot}g Protein`);
+                    infoWindow.open(map, item.marker);
+                };
+
+                listContainer.appendChild(el);
+            });
+        }
+    </script>
+
+    <script>
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(config => {
+                const s = document.createElement('script');
+                s.src = `https://maps.googleapis.com/maps/api/js?key=${config.apiKey}&libraries=places,geometry&callback=initMap`;
+                document.head.appendChild(s);
+            });
+    </script>
+</body>
+</html>
